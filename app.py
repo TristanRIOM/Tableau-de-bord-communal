@@ -447,6 +447,7 @@ else:
 # =========================================================
 # FIN DE PAGE
 # =========================================================
+st.divider()
 st.subheader("📚 Sources & Crédits")
 # Colonnes pour organiser les sources
 col1, col2 = st.columns(2)
@@ -470,10 +471,8 @@ with col2:
     
     Développé avec [Streamlit](https://streamlit.io/)
     """)
-st.divider()
 # Temps écoulé
 elapsed = time.time() - st.session_state.start_time
 st.caption(f"⏱️ Temps de chargement : {elapsed:.1f} secondes")
-st.divider()
 st.caption("""
 *Code, analyse et mise en page : Tristan Riom | Dernière mise à jour :* """ + datetime.now().strftime("%d/%m/%Y"))
