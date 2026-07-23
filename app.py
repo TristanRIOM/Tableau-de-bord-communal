@@ -447,46 +447,33 @@ else:
 # =========================================================
 # FIN DE PAGE
 # =========================================================
-st.divider()
-st.subheader("Infos sur cette page")
-# Temps écoulé
-elapsed = time.time() - st.session_state.start_time
-st.write(f"Temps de chargement de la page : {elapsed:.1f} secondes")
-st.divider()
-
 st.subheader("📚 Sources & Crédits")
-
 # Colonnes pour organiser les sources
 col1, col2 = st.columns(2)
-
 with col1:
     st.markdown("""
-    **🏛️ Données publiques utilisées**
+    **🏛️ Données publiques utilisées par thématiques**
     
     - 🗳️ **[Répertoire des élus](https://www.data.gouv.fr/fr/datasets/repertoire-national-des-elus-2/)** – Ministère de l'Intérieur
     - 📊 **[Flux mobilité INSEE](https://www.data.gouv.fr/fr/datasets/flux-domicile-travail-2020/)** – INSEE 2020
     - 🚗 **[Modes de transport](https://www.data.gouv.fr/datasets/flux-domicile-travail-selon-le-mode-de-transport-principal-utilise)** – INSEE / ADEME
-    - 🗺️ **[Géographie](https://geo.api.gouv.fr/)** – API Geo (DINUM)
+
     """)
 
 with col2:
     st.markdown("""
-    **🏠 Autres sources**
+    **📍 Données générales sur les territoires**
     
-    - 🌍 **[DPE ADEME](https://data.ademe.fr/datasets/dpe-france)** – Diagnostic Performance Énergétique
     - 📈 **[Population](https://geo.api.gouv.fr/)** – INSEE via API Geo
     - 🔗 **[data.gouv.fr](https://www.data.gouv.fr/)** – Plateforme open data française
+    - 🗺️ **[Géographie](https://geo.api.gouv.fr/)** – API Geo (DINUM)
     
-    **⚙️ Technique**
-    - Développé avec [Streamlit](https://streamlit.io/)
-    - Données traitée avec Pandas, Plotly, NumPy
+    Développé avec [Streamlit](https://streamlit.io/)
     """)
 st.divider()
-st.caption(f"⏱️ Chargé en {elapsed:.1f}s | Code : Tristan Riom | Données : sources publiques (licence ouverte)")
 # Temps écoulé
 elapsed = time.time() - st.session_state.start_time
 st.caption(f"⏱️ Temps de chargement : {elapsed:.1f} secondes")
 st.divider()
 st.caption("""
-*Toutes les données sont publiques et librement réutilisables*
 *Code, analyse et mise en page : Tristan Riom | Dernière mise à jour :* """ + datetime.now().strftime("%d/%m/%Y"))
