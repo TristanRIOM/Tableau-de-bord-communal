@@ -8,11 +8,8 @@ import plotly.express as px  # pour le graphique en barres avec étiquettes de p
 
 # Initialisation du temps de départ
 st.session_state.start_time = time.time()
-    
 st.set_page_config(page_title="Tableau de bord - Transition écologique", page_icon="🌱", layout="wide") # configure l'onglet du navigateur et l'affichage large
-
 st.title("🌱 Tableau de bord - Transition écologique")  # affiche le titre principal de la page
-
 
 # =========================================================
 # FONCTIONS
@@ -106,7 +103,6 @@ def calculer_synthese(elus_municipaux, codes_communes):
 
     
     return synthese
-
 def filtrer_elus(elus_municipaux, codes_communes):
     return elus_municipaux[elus_municipaux["Code de la commune"].isin(codes_communes)]
 # ---------------------------------------------------------
@@ -122,7 +118,6 @@ def charger_donnees_flux():
     })
     base_flux.CODGEO.astype(str)
     return base_flux
-
 def charger_donnees_flux_modes():
     url = "https://www.data.gouv.fr/api/1/datasets/r/f624e1db-8f22-4a96-9f5a-9f9ee2aae53e"
     return pd.read_csv(url, sep=",", encoding="utf-8", dtype={"geocode_commune": str})  # sep="," au lieu de ";", et on force le code commune en texte
@@ -131,8 +126,6 @@ def charger_population_communes():
     # Référentiel national : population et EPCI de rattachement de chaque commune
     resp = requests.get("https://geo.api.gouv.fr/communes", params={"fields": "code,population,codeEpci"})
     return pd.DataFrame(resp.json())
-
-
 def bracket_population(population):
     # Classe une population dans une tranche, pour comparer des territoires de taille comparable
     if population is None or pd.isna(population):
@@ -151,8 +144,6 @@ def bracket_population(population):
         return "50 000 - 100 000 hab."
     else:
         return "> 100 000 hab."
-
-
 def calculer_repartition(flux_modes, codes):
     # Calcule la répartition modale (%) pour un ensemble de codes commune donné
     data = flux_modes[flux_modes["geocode_commune"].isin(codes)]
@@ -168,7 +159,6 @@ def charger_referentiel_epci():
     epcis = pd.DataFrame(resp2.json()).rename(columns={"code": "codeEpci", "nom": "Libellé EPCI destination"})  # met en tableau et renomme les colonnes pour la fusion
 
     return communes_epci.merge(epcis, on="codeEpci", how="left")  # associe à chaque commune le nom de son EPCI de rattachement
-
 def preparer_regroupement(data_flux, keys_mode_affichage):
     """Affiche le bouton de regroupement (Commune/EPCI) et enrichit les données si besoin."""
     if keys_mode_affichage == "EPCI":
@@ -177,8 +167,6 @@ def preparer_regroupement(data_flux, keys_mode_affichage):
     else:
         colonne_groupe = "L_DCLT"
     return data_flux, colonne_groupe
-
-
 def calculer_tableau_flux(data_flux, colonne_groupe, nb_affichage=10):
     """Regroupe les flux par destination, calcule le pourcentage, garde les plus gros flux."""
     tableau = data_flux.groupby(colonne_groupe, as_index=False).agg(
@@ -186,7 +174,6 @@ def calculer_tableau_flux(data_flux, colonne_groupe, nb_affichage=10):
     )
     tableau["pct"] = (tableau["NBFLUX_C20_ACTOCC15P"] / tableau["NBFLUX_C20_ACTOCC15P"].sum() * 100).round(1)
     return tableau.nlargest(nb_affichage, "NBFLUX_C20_ACTOCC15P")
-
 def preparer_regroupement_origine(data_flux, keys_mode_affichage):
     """Même logique que preparer_regroupement(), mais pour regrouper par origine (CODGEO/LIBGEO) plutôt que par destination (DCLT/L_DCLT)."""
     if keys_mode_affichage == "EPCI":
@@ -196,8 +183,9 @@ def preparer_regroupement_origine(data_flux, keys_mode_affichage):
     else:
         colonne_groupe = "LIBGEO"
     return data_flux, colonne_groupe
+
 # =========================================================
-# ÉTAPE 1 : choix du type de territoire (commune ou EPCI)
+# SELECTION DU TERRITOIRE
 # =========================================================
 type_territoire = st.radio(
     "Rechercher par :",
@@ -263,7 +251,7 @@ else:  # EPCI
             st.caption(f"{len(communes_selectionnees)} communes membres")
 
 # =========================================================
-# ÉTAPE 2 : affichage des infos générales du territoire
+# AFFICHAGE DES INFORMATIONS DE BASES SUR LE TERRITOIRE
 # =========================================================
 st.subheader(f"📍 {territoire_label}")
 
@@ -285,7 +273,7 @@ if points:
     col2.map(pd.DataFrame(points))
 
 # =========================================================
-# ÉTAPE 2 bis : élus municipaux (répertoire national des élus)
+# AFFICHAGE DES ÉLUS MUNICIPAUX
 # =========================================================
 st.divider()
 st.markdown(f"# 🗳️ Les élus du territoire et le renouvellement en 2026")
@@ -308,8 +296,9 @@ st.write(
 with st.expander("#### Voir la liste des élus"):
     st.dataframe(filtrer_elus(elus_municipaux, codes_communes))
 st.caption("Données issues du registre national des élu.e.s, si deux élu.e.s de la même communes sont homonyme, ils sont comptés comme étant la même personne.")
+
 # =========================================================
-# MOBILITE
+# MOBILITE #1
 # Flux mobilité (issue de la base flux mobilité domicile lieu de travail)
 # =========================================================
 
@@ -339,9 +328,7 @@ pct_flux_internes_dest = round(nb_flux_internes_dest / nb_flux_total_dest * 100,
 
 label_metrique_dest = "Actifs qui habitent et travaillent sur place" if type_territoire == "Commune" else "Flux internes (nombre d'actifs)"
 
-
 # Affichage des trois colonnes : flux internes, flux par destination, flux par origine
-
 col4, col5, col6bis = st.columns(3)
 col4.metric(
     label=label_metrique,
@@ -371,13 +358,8 @@ for _, ligne in tableau_flux_origine.iterrows():
     col6bis.write(f"**{ligne[colonne_groupe_origine]}** : {ligne['NBFLUX_C20_ACTOCC15P']:,.0f} actifs ({ligne['pct']} %)".replace(",", " "))
     col6bis.progress(ligne["pct"] / 100)
 
-
-
-
-
-
 # =========================================================
-# MOBILITE
+# MOBILITE #2
 # Modes de déplacements
 # =========================================================
 st.markdown(f"## Comment les habitants de {territoire_label} se déplacent-ils ?")
@@ -462,83 +444,49 @@ else:
         f"(INSEE / Tableau de bord des mobilités durables) — données au {date_maj}"
     )
     
-
-    
-# =========================================================
-# ÉTAPE 3 : indicateur ADEME - diagnostics de performance
-# énergétique (DPE) des logements
-# =========================================================
-st.divider()
-st.subheader("🏠 Performance énergétique des logements (ADEME)")
-
-if type_territoire == "Commune":
-    commune = communes_selectionnees[0]
-    with st.spinner("Interrogation de la base DPE de l'ADEME..."):
-        try:
-            resp_dpe = requests.get(
-                "https://data.ademe.fr/data-fair/api/v1/datasets/dpe-france/lines",
-                params={
-                    "qs": f"Code_INSEE_(BAN):{commune['code']}",
-                    "size": 1000,
-                    "select": "Etiquette_DPE",
-                },
-                timeout=15,
-            )
-            data_dpe = resp_dpe.json()
-            dpe_results = data_dpe.get("results", [])
-        except Exception:
-            dpe_results = None
-
-    if dpe_results:
-        df_dpe = pd.DataFrame(dpe_results)
-        repartition = df_dpe["Etiquette_DPE"].value_counts().sort_index()
-        st.bar_chart(repartition)
-        st.caption(f"{len(dpe_results)} diagnostics trouvés pour {commune['nom']}")
-    else:
-        st.info(
-            "Pas de résultat (ou champ de filtre à ajuster). Le nom exact des colonnes "
-            "de ce jeu de données évolue parfois — vérifie-le sur la page "
-            "[dpe-france](https://data.ademe.fr/datasets/dpe-france) avant de "
-            "réutiliser cette requête."
-        )
-else:
-    st.caption(
-        "Pour un EPCI, interroger l'ADEME nécessiterait de boucler sur chaque code "
-        "commune (potentiellement lent). Étape suggérée pour plus tard : agréger les "
-        "résultats commune par commune, ou filtrer directement par code département."
-    )
-
-# =========================================================
-# ÉTAPE 4 : risques de vagues de chaleur (projections climat)
-# =========================================================
-st.divider()
-st.subheader("🌡️ Risque de vagues de chaleur (projections climatiques)")
-
-st.warning(
-    "Il n'existe pas d'API publique gratuite donnant, en direct, une projection "
-    "GIEC/vagues de chaleur **par commune**. Les données disponibles (ADEME/Météo-France, "
-    "projet TRACC) sont publiées à l'échelle **régionale ou départementale**, sous forme "
-    "de fichiers à télécharger — pas d'endpoint interrogeable en temps réel."
-)
-st.markdown(
-    "Pour intégrer un vrai indicateur ici, l'approche réaliste est :\n"
-    "1. Télécharger une fois les [données climatiques prospectives ADEME/Météo-France]"
-    "(https://data.ademe.fr/datasets/donnees-climatiques-prospectives-france-2-7degc-vague-de-chaleur) "
-    "(fichiers par département, scénarios +2°C / +2,7°C / +4°C)\n"
-    "2. Les stocker dans un fichier local (`.csv`) du projet\n"
-    "3. Faire correspondre le `codeDepartement` de la commune avec ce fichier pour "
-    "afficher l'indicateur associé\n\n"
-    "C'est un bon prochain exercice : ça demande de manipuler `pandas.read_csv()` "
-    "et une jointure sur le code département — une étape clé pour progresser."
-)
-
 # =========================================================
 # FIN DE PAGE
 # =========================================================
 st.divider()
 st.subheader("Infos sur cette page")
-
 # Temps écoulé
 elapsed = time.time() - st.session_state.start_time
 st.write(f"Temps de chargement de la page : {elapsed:.1f} secondes")
-st.write("Les données inscrite sur cette pages se basent sur des données publiques librement accessible. Le code, l'analyse et la mise en page est la propriété de Tristan Riom")
+st.divider()
+
+st.subheader("📚 Sources & Crédits")
+
+# Colonnes pour organiser les sources
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown("""
+    **🏛️ Données publiques utilisées**
+    
+    - 🗳️ **[Répertoire des élus](https://www.data.gouv.fr/fr/datasets/repertoire-national-des-elus-2/)** – Ministère de l'Intérieur
+    - 📊 **[Flux mobilité INSEE](https://www.data.gouv.fr/fr/datasets/flux-domicile-travail-2020/)** – INSEE 2020
+    - 🚗 **[Modes de transport](https://www.data.gouv.fr/datasets/flux-domicile-travail-selon-le-mode-de-transport-principal-utilise)** – INSEE / ADEME
+    - 🗺️ **[Géographie](https://geo.api.gouv.fr/)** – API Geo (DINUM)
+    """)
+
+with col2:
+    st.markdown("""
+    **🏠 Autres sources**
+    
+    - 🌍 **[DPE ADEME](https://data.ademe.fr/datasets/dpe-france)** – Diagnostic Performance Énergétique
+    - 📈 **[Population](https://geo.api.gouv.fr/)** – INSEE via API Geo
+    - 🔗 **[data.gouv.fr](https://www.data.gouv.fr/)** – Plateforme open data française
+    
+    **⚙️ Technique**
+    - Développé avec [Streamlit](https://streamlit.io/)
+    - Données traitée avec Pandas, Plotly, NumPy
+    """)
+st.divider()
+st.caption(f"⏱️ Chargé en {elapsed:.1f}s | Code : Tristan Riom | Données : sources publiques (licence ouverte)")
+# Temps écoulé
+elapsed = time.time() - st.session_state.start_time
+st.caption(f"⏱️ Temps de chargement : {elapsed:.1f} secondes")
+st.divider()
+st.caption("""
+*Toutes les données sont publiques et librement réutilisables*
+*Code, analyse et mise en page : Tristan Riom | Dernière mise à jour :* """ + datetime.now().strftime("%d/%m/%Y"))
