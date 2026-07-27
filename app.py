@@ -299,7 +299,8 @@ def get_documents_urbanisme(code_insee):
 def charger_pcaet_depuis_data_gouv():
     """Charge les données PCAET directement depuis data.gouv.fr (ADEME - mise à jour 2024)."""
     # URL officielle du CSV PCAET (dataset: "Démarches PCAET")
-    url = "https://www.data.gouv.fr/fr/datasets/r/645a8e71-8f1d-4d39-9411-237644bf795a"
+    url = "https://www.data.gouv.fr/api/1/datasets/r/ce0c5ed8-ac25-4f24-af28-ab8e92b44c09"
+    # url = "https://www.data.gouv.fr/fr/datasets/r/645a8e71-8f1d-4d39-9411-237644bf795a"
 
     try:
         with st.spinner("Téléchargement des données PCAET depuis l'ADEME..."):
