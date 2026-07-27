@@ -592,7 +592,7 @@ st.subheader("🌍 Plans Climat-Air-Énergie Territorial (PCAET)")
 
 # Charger les données depuis data.gouv.fr
 pcaet = charger_pcaet_depuis_data_gouv()
-
+pcaet
 if pcaet is not None and not pcaet.empty:
     if communes_selectionnees:
         code_epci = communes_selectionnees[0].get("codeEpci")
