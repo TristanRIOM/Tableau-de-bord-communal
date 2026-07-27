@@ -261,6 +261,9 @@ def get_couleur_vigilance(couleur):
 # ---------------------------------------------------------
 # DOCUMENTS STRUCTURANTS (PLU, POS, PCAET)
 # ---------------------------------------------------------
+from adev_pcaet_simple import charger_pcaet_v2_par_commune, charger_pcaet_v2_par_epci, afficher_pcaet_territoire
+
+
 def get_documents_urbanisme(code_insee):
     """Récupère les documents d'urbanisme (PLU, POS, etc.) pour une commune via l'API IGN."""
     # 1. Récupérer le contour de la commune
@@ -586,50 +589,25 @@ else:
 st.divider()
 st.markdown(f"# 📄 Documents structurants")
 
+# --- PCAET v2 (NOUVELLE VERSION ADEME) ---
+st.subheader("🌍 Plans Climat-Air-Énergie Territorial (PCAET) v2")
 
-# --- PCAET ---
-st.subheader("🌍 Plans Climat-Air-Énergie Territorial (PCAET)")
-
-# Charger les données depuis data.gouv.fr
-pcaet = charger_pcaet_depuis_data_gouv()
-pcaet
-if pcaet is not None and not pcaet.empty:
-    if communes_selectionnees:
-        code_epci = communes_selectionnees[0].get("codeEpci")
-
-        if code_epci:
-            # Filtrer par SIREN de l'EPCI
-            pcaet_de_mon_epci = pcaet[pcaet["SIREN"] == code_epci]
-
-            if not pcaet_de_mon_epci.empty:
-                st.success(f"✅ PCAET trouvé pour l'EPCI {code_epci} !")
-
-                # Sélectionner les colonnes pertinentes
-                colonnes_utiles = [
-                    "Nom de la collectivité", "SIREN", "Type de PCAET",
-                    "Date d'approbation", "Date de dernière mise à jour",
-                    "Lien vers le PCAET", "Lien vers la délibération"
-                ]
-                # Garder seulement les colonnes qui existent
-                colonnes_disponibles = [col for col in colonnes_utiles if col in pcaet_de_mon_epci.columns]
-
-                st.dataframe(
-                    pcaet_de_mon_epci[colonnes_disponibles],
-                    use_container_width=True,
-                    hide_index=True
-                )
-
-                # Lien direct
-                st.markdown(f"[🔗 Voir tous les PCAET sur data.gouv.fr](https://www.data.gouv.fr/fr/datasets/demarches-pcaet/)")
-            else:
-                st.info(f"⚠️ Aucun PCAET trouvé pour l'EPCI {code_epci} dans les données disponibles.")
-                st.markdown(f"[Vérifier sur data.gouv.fr](https://www.data.gouv.fr/fr/datasets/r/50070596-2c92-4758-a655-0f720079ac62)")
-        else:
-            st.info("Code EPCI non disponible pour ce territoire")
+if communes_selectionnees:
+    if type_territoire == "Commune":
+        code_insee = communes_selectionnees[0]["code"]
+        pcaet_v2_data = charger_pcaet_v2_par_commune(code_insee)
     else:
-        st.info("Sélectionnez un territoire pour afficher les PCAET")
+        code_epci = communes_selectionnees[0]["codeEpci"]
+        pcaet_v2_data = charger_pcaet_v2_par_epci(code_epci)
+
+    afficher_pcaet_territoire(pcaet_v2_data, territoire_label)
+
+    # Séparateur pour l'ancienne version
+    st.markdown("---")
+    st.markdown("#### Version précédente (PCAET v1)")
+    # ... ton code existant pour PCAET v1 ...
 else:
-    st.warning("⚠️ Impossible de charger les données PCAET depuis data.gouv.fr. [Vérifier la connexion](https://www.data.gouv.fr/fr/datasets/demarches-pcaet/)")
+    st.info("Sélectionnez un territoire pour afficher les PCAET v2")
 
 # --- Documents d'urbanisme (PLU, POS, etc.) ---
 st.subheader("🏗️ Documents d'urbanisme")
