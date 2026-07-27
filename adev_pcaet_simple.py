@@ -29,105 +29,102 @@ def charger_pcaet_v2_par_commune(code_insee: str) -> Optional[pd.DataFrame]:
     """
     code_insee = str(code_insee).zfill(5)
     
-    try:
-        # URL directe du service de données PCAET v2
-        url = "https://www.data.gouv.fr/dataservices/pcaet-v2-demarches-partie-1-entete"
-        
-        # Tentative 1: Téléchargement direct depuis l'URL du service
-        with st.spinner(f"Téléchargement des données PCAET pour la commune {code_insee}..."):
-            response = requests.get(url, timeout=30)
-            response.raise_for_status()
-            
-            # Vérifier si c'est un CSV
-            if response.headers.get('Content-Type', '').startswith('text/csv'):
-                df = pd.read_csv(
-                    url,
-                    sep=";",
-                    dtype=str,
-                    encoding="utf-8",
-                    on_bad_lines="warn"
-                )
-            else:
-                # C'est probablement du JSON avec les métadonnées
-                # Essayer de trouver l'URL du CSV dans la réponse
-                data = response.json()
-                csv_url = None
-                
-                # Chercher dans les ressources
-                if isinstance(data, dict):
-                    if 'resources' in data:
-                        for resource in data['resources']:
-                            if resource.get('format', '').lower() == 'csv':
-                                csv_url = resource.get('url')
-                                break
-                    elif 'url' in data:
-                        csv_url = data['url']
-                
-                if csv_url:
-                    df = pd.read_csv(
-                        csv_url,
-                        sep=";",
-                        dtype=str,
-                        encoding="utf-8",
-                        on_bad_lines="warn"
-                    )
-                else:
-                    st.error("❌ Impossible de trouver l'URL du CSV dans la réponse")
-                    return None
-        
-        # Filtrer par code INSEE
-        insee_col = None
-        for col in df.columns:
-            if 'insee' in col.lower() or 'code commune' in col.lower():
-                insee_col = col
-                break
-        
-        if insee_col:
-            filtered_df = df[df[insee_col].astype(str).str.strip() == code_insee]
-            if not filtered_df.empty:
-                st.success(f"✅ {len(filtered_df)} PCAET trouvé(s) pour la commune {code_insee}")
-                return filtered_df
-            else:
-                st.info(f"ℹ️ Aucun PCAET trouvé pour la commune {code_insee}")
-                return pd.DataFrame()
-        else:
-            st.warning(f"⚠️ Aucune colonne INSEE trouvée. Colonnes disponibles: {list(df.columns)}")
-            return df
-            
-    except requests.exceptions.RequestException as e:
-        st.error(f"❌ Erreur de téléchargement: {e}")
-        # Essayer avec une URL alternative connue
-        try:
-            alt_url = "https://www.data.gouv.fr/fr/datasets/r/ce0c5ed8-ac25-4f24-af28-ab8e92b44c09"
-            with st.spinner("Tentative avec URL alternative..."):
-                response = requests.get(alt_url, timeout=30)
-                response.raise_for_status()
-                df = pd.read_csv(
-                    alt_url,
-                    sep=";",
-                    dtype=str,
-                    encoding="utf-8",
-                    on_bad_lines="warn"
-                )
-            
-            # Filtrer par code INSEE
-            for col in df.columns:
-                if 'insee' in col.lower() or 'code commune' in col.lower():
-                    filtered_df = df[df[col].astype(str).str.strip() == code_insee]
-                    if not filtered_df.empty:
-                        st.success(f"✅ {len(filtered_df)} PCAET trouvé(s) avec URL alternative")
-                        return filtered_df
-            
-            st.info(f"ℹ️ Aucun PCAET trouvé pour la commune {code_insee} (même avec URL alternative)")
-            return pd.DataFrame()
-            
-        except Exception as e2:
-            st.error(f"❌ Erreur avec l'URL alternative: {e2}")
-            return None
+    # Liste des URLs à essayer (par ordre de priorité)
+    urls_to_try = [
+        "https://www.data.gouv.fr/fr/datasets/r/ce0c5ed8-ac25-4f24-af28-ab8e92b44c09",  # URL directe CSV connue
+        "https://www.data.gouv.fr/dataservices/pcaet-v2-demarches-partie-1-entete",  # URL du service
+        "https://www.data.gouv.fr/fr/datasets/r/50070596-2c92-4758-a655-0f720079ac62",  # URL alternative
+    ]
     
-    except Exception as e:
-        st.error(f"❌ Erreur inattendue: {e}")
-        return None
+    for url in urls_to_try:
+        try:
+            with st.spinner(f"Téléchargement des données PCAET pour la commune {code_insee}..."):
+                response = requests.get(url, timeout=30)
+                
+                if response.status_code != 200:
+                    continue
+                
+                # Vérifier si c'est du CSV
+                if response.headers.get('Content-Type', '').startswith('text/csv') or url.endswith('.csv'):
+                    try:
+                        df = pd.read_csv(
+                            url,
+                            sep=";",
+                            dtype=str,
+                            encoding="utf-8",
+                            on_bad_lines="warn"
+                        )
+                        # Filtrer par code INSEE
+                        filtered_df = _filter_pcaet_by_commune(df, code_insee)
+                        if filtered_df is not None:
+                            return filtered_df
+                    except Exception:
+                        continue
+                
+                # Vérifier si c'est du JSON
+                if response.headers.get('Content-Type', '').startswith('application/json'):
+                    try:
+                        # Vérifier que la réponse n'est pas vide
+                        if not response.text.strip():
+                            continue
+                        data = response.json()
+                        csv_url = None
+                        
+                        if isinstance(data, dict):
+                            if 'resources' in data:
+                                for resource in data['resources']:
+                                    if resource.get('format', '').lower() == 'csv' and 'url' in resource:
+                                        csv_url = resource['url']
+                                        break
+                            elif 'url' in data:
+                                csv_url = data['url']
+                        
+                        if csv_url:
+                            df = pd.read_csv(
+                                csv_url,
+                                sep=";",
+                                dtype=str,
+                                encoding="utf-8",
+                                on_bad_lines="warn"
+                            )
+                            filtered_df = _filter_pcaet_by_commune(df, code_insee)
+                            if filtered_df is not None:
+                                return filtered_df
+                    except Exception:
+                        continue
+                        
+        except Exception:
+            continue
+    
+    # Si toutes les URLs ont échoué
+    st.error(f"❌ Impossible de télécharger les données PCAET v2. Toutes les URLs ont échoué.")
+    return None
+
+
+def _filter_pcaet_by_commune(df: pd.DataFrame, code_insee: str) -> Optional[pd.DataFrame]:
+    """Filtre un DataFrame PCAET par code INSEE."""
+    if df.empty:
+        st.info(f"ℹ️ Aucune donnée PCAET trouvée pour la commune {code_insee}")
+        return pd.DataFrame()
+    
+    # Chercher la colonne code INSEE
+    insee_col = None
+    for col in df.columns:
+        if 'insee' in col.lower() or 'code commune' in col.lower():
+            insee_col = col
+            break
+    
+    if insee_col:
+        filtered_df = df[df[insee_col].astype(str).str.strip() == code_insee]
+        if not filtered_df.empty:
+            st.success(f"✅ {len(filtered_df)} PCAET trouvé(s) pour la commune {code_insee}")
+            return filtered_df
+        else:
+            st.info(f"ℹ️ Aucun PCAET trouvé pour la commune {code_insee}")
+            return pd.DataFrame()
+    
+    st.warning(f"⚠️ Aucune colonne INSEE trouvée. Colonnes disponibles: {list(df.columns)}")
+    return df
 
 
 @st.cache_data(ttl=86400)  # Cache 24h
@@ -143,83 +140,112 @@ def charger_pcaet_v2_par_epci(code_epci: str) -> Optional[pd.DataFrame]:
     """
     code_epci = str(code_epci).zfill(9)
     
-    try:
-        # URL directe du service de données
-        url = "https://www.data.gouv.fr/dataservices/pcaet-v2-demarches-partie-1-entete"
-        
-        with st.spinner(f"Téléchargement des données PCAET pour l'EPCI {code_epci}..."):
-            response = requests.get(url, timeout=30)
-            response.raise_for_status()
-            
-            if response.headers.get('Content-Type', '').startswith('text/csv'):
-                df = pd.read_csv(
-                    url,
-                    sep=";",
-                    dtype=str,
-                    encoding="utf-8",
-                    on_bad_lines="warn"
-                )
-            else:
-                data = response.json()
-                csv_url = None
+    # Liste des URLs à essayer (par ordre de priorité)
+    urls_to_try = [
+        "https://www.data.gouv.fr/fr/datasets/r/ce0c5ed8-ac25-4f24-af28-ab8e92b44c09",  # URL directe CSV connue
+        "https://www.data.gouv.fr/dataservices/pcaet-v2-demarches-partie-1-entete",  # URL du service
+        "https://www.data.gouv.fr/fr/datasets/r/50070596-2c92-4758-a655-0f720079ac62",  # URL alternative
+    ]
+    
+    for url in urls_to_try:
+        try:
+            with st.spinner(f"Téléchargement des données PCAET pour l'EPCI {code_epci}..."):
+                response = requests.get(url, timeout=30)
                 
-                if isinstance(data, dict):
-                    if 'resources' in data:
-                        for resource in data['resources']:
-                            if resource.get('format', '').lower() == 'csv':
-                                csv_url = resource.get('url')
-                                break
-                    elif 'url' in data:
-                        csv_url = data['url']
+                if response.status_code != 200:
+                    continue
                 
-                if csv_url:
-                    df = pd.read_csv(
-                        csv_url,
-                        sep=";",
-                        dtype=str,
-                        encoding="utf-8",
-                        on_bad_lines="warn"
-                    )
-                else:
-                    st.error("❌ Impossible de trouver l'URL du CSV")
-                    return None
-        
-        # Filtrer par SIREN
-        siren_col = None
-        for col in df.columns:
-            if 'siren' in col.lower():
-                siren_col = col
-                break
-        
-        if siren_col:
-            # Filtrer par code EPCI (qui est un SIREN)
-            filtered_df = df[df[siren_col].astype(str).str.strip() == code_epci]
-            if not filtered_df.empty:
-                st.success(f"✅ {len(filtered_df)} PCAET trouvé(s) pour l'EPCI {code_epci}")
-                return filtered_df
-            else:
-                st.info(f"ℹ️ Aucun PCAET trouvé pour l'EPCI {code_epci}")
-                return pd.DataFrame()
-        else:
-            # Si pas de colonne SIREN, essayer avec code EPCI
-            epci_col = None
-            for col in df.columns:
-                if 'epci' in col.lower() and 'code' in col.lower():
-                    epci_col = col
-                    break
-            
-            if epci_col:
-                filtered_df = df[df[epci_col].astype(str).str.strip() == code_epci]
-                if not filtered_df.empty:
-                    st.success(f"✅ {len(filtered_df)} PCAET trouvé(s) pour l'EPCI {code_epci}")
-                    return filtered_df
-            
-            st.warning(f"⚠️ Aucune colonne SIREN/EPCI trouvée. Colonnes: {list(df.columns)}")
-            return df
-            
-    except Exception as e:
-        st.error(f"❌ Erreur: {e}")
-        return None
+                # Vérifier si c'est du CSV
+                if response.headers.get('Content-Type', '').startswith('text/csv') or url.endswith('.csv'):
+                    try:
+                        df = pd.read_csv(
+                            url,
+                            sep=";",
+                            dtype=str,
+                            encoding="utf-8",
+                            on_bad_lines="warn"
+                        )
+                        # Filtrer par SIREN/EPCI
+                        filtered_df = _filter_pcaet_by_epci(df, code_epci)
+                        if filtered_df is not None:
+                            return filtered_df
+                    except Exception:
+                        continue
+                
+                # Vérifier si c'est du JSON
+                if response.headers.get('Content-Type', '').startswith('application/json'):
+                    try:
+                        # Vérifier que la réponse n'est pas vide
+                        if not response.text.strip():
+                            continue
+                        data = response.json()
+                        csv_url = None
+                        
+                        if isinstance(data, dict):
+                            if 'resources' in data:
+                                for resource in data['resources']:
+                                    if resource.get('format', '').lower() == 'csv' and 'url' in resource:
+                                        csv_url = resource['url']
+                                        break
+                            elif 'url' in data:
+                                csv_url = data['url']
+                        
+                        if csv_url:
+                            df = pd.read_csv(
+                                csv_url,
+                                sep=";",
+                                dtype=str,
+                                encoding="utf-8",
+                                on_bad_lines="warn"
+                            )
+                            filtered_df = _filter_pcaet_by_epci(df, code_epci)
+                            if filtered_df is not None:
+                                return filtered_df
+                    except Exception:
+                        continue
+                        
+        except Exception:
+            continue
+    
+    # Si toutes les URLs ont échoué
+    st.error(f"❌ Impossible de télécharger les données PCAET v2. Toutes les URLs ont échoué.")
+    return None
+
+
+def _filter_pcaet_by_epci(df: pd.DataFrame, code_epci: str) -> Optional[pd.DataFrame]:
+    """Filtre un DataFrame PCAET par code EPCI/SIREN."""
+    if df.empty:
+        st.info(f"ℹ️ Aucune donnée PCAET trouvée pour l'EPCI {code_epci}")
+        return pd.DataFrame()
+    
+    # Chercher la colonne SIREN ou code EPCI
+    siren_col = None
+    for col in df.columns:
+        if 'siren' in col.lower():
+            siren_col = col
+            break
+    
+    if siren_col:
+        filtered_df = df[df[siren_col].astype(str).str.strip() == code_epci]
+        if not filtered_df.empty:
+            st.success(f"✅ {len(filtered_df)} PCAET trouvé(s) pour l'EPCI {code_epci}")
+            return filtered_df
+    
+    # Si pas de colonne SIREN, essayer avec code EPCI
+    epci_col = None
+    for col in df.columns:
+        if 'epci' in col.lower() and 'code' in col.lower():
+            epci_col = col
+            break
+    
+    if epci_col:
+        filtered_df = df[df[epci_col].astype(str).str.strip() == code_epci]
+        if not filtered_df.empty:
+            st.success(f"✅ {len(filtered_df)} PCAET trouvé(s) pour l'EPCI {code_epci}")
+            return filtered_df
+    
+    st.warning(f"⚠️ Aucune colonne SIREN/EPCI trouvée. Colonnes disponibles: {list(df.columns)}")
+    return df
 
 
 @st.cache_data(ttl=86400)  # Cache 24h
@@ -232,53 +258,73 @@ def charger_tous_pcaet_v2() -> Optional[pd.DataFrame]:
     Returns:
         DataFrame avec toutes les données PCAET
     """
-    try:
-        url = "https://www.data.gouv.fr/dataservices/pcaet-v2-demarches-partie-1-entete"
-        
-        with st.spinner("Téléchargement de toutes les données PCAET v2 (cela peut prendre quelques secondes)..."):
-            response = requests.get(url, timeout=60)
-            response.raise_for_status()
-            
-            if response.headers.get('Content-Type', '').startswith('text/csv'):
-                df = pd.read_csv(
-                    url,
-                    sep=";",
-                    dtype=str,
-                    encoding="utf-8",
-                    on_bad_lines="warn"
-                )
-                st.success(f"✅ {len(df)} lignes téléchargées")
-                return df
-            else:
-                data = response.json()
-                csv_url = None
+    # Liste des URLs à essayer (par ordre de priorité)
+    urls_to_try = [
+        "https://www.data.gouv.fr/fr/datasets/r/ce0c5ed8-ac25-4f24-af28-ab8e92b44c09",  # URL directe CSV connue
+        "https://www.data.gouv.fr/dataservices/pcaet-v2-demarches-partie-1-entete",  # URL du service
+        "https://www.data.gouv.fr/fr/datasets/r/50070596-2c92-4758-a655-0f720079ac62",  # URL alternative
+    ]
+    
+    for url in urls_to_try:
+        try:
+            with st.spinner("Téléchargement de toutes les données PCAET v2 (cela peut prendre quelques secondes)..."):
+                response = requests.get(url, timeout=60)
                 
-                if isinstance(data, dict):
-                    if 'resources' in data:
-                        for resource in data['resources']:
-                            if resource.get('format', '').lower() == 'csv':
-                                csv_url = resource.get('url')
-                                break
-                    elif 'url' in data:
-                        csv_url = data['url']
+                if response.status_code != 200:
+                    continue
                 
-                if csv_url:
-                    df = pd.read_csv(
-                        csv_url,
-                        sep=";",
-                        dtype=str,
-                        encoding="utf-8",
-                        on_bad_lines="warn"
-                    )
-                    st.success(f"✅ {len(df)} lignes téléchargées depuis {csv_url}")
-                    return df
-                else:
-                    st.error("❌ Impossible de trouver l'URL du CSV dans les métadonnées")
-                    return None
-                    
-    except Exception as e:
-        st.error(f"❌ Erreur de téléchargement: {e}")
-        return None
+                # Vérifier si c'est du CSV
+                if response.headers.get('Content-Type', '').startswith('text/csv') or url.endswith('.csv'):
+                    try:
+                        df = pd.read_csv(
+                            url,
+                            sep=";",
+                            dtype=str,
+                            encoding="utf-8",
+                            on_bad_lines="warn"
+                        )
+                        st.success(f"✅ {len(df)} lignes téléchargées depuis {url}")
+                        return df
+                    except Exception:
+                        continue
+                
+                # Vérifier si c'est du JSON
+                if response.headers.get('Content-Type', '').startswith('application/json'):
+                    try:
+                        # Vérifier que la réponse n'est pas vide
+                        if not response.text.strip():
+                            continue
+                        data = response.json()
+                        csv_url = None
+                        
+                        if isinstance(data, dict):
+                            if 'resources' in data:
+                                for resource in data['resources']:
+                                    if resource.get('format', '').lower() == 'csv' and 'url' in resource:
+                                        csv_url = resource['url']
+                                        break
+                            elif 'url' in data:
+                                csv_url = data['url']
+                        
+                        if csv_url:
+                            df = pd.read_csv(
+                                csv_url,
+                                sep=";",
+                                dtype=str,
+                                encoding="utf-8",
+                                on_bad_lines="warn"
+                            )
+                            st.success(f"✅ {len(df)} lignes téléchargées depuis {csv_url}")
+                            return df
+                    except Exception:
+                        continue
+                        
+        except Exception:
+            continue
+    
+    # Si toutes les URLs ont échoué
+    st.error("❌ Impossible de télécharger les données PCAET v2. Toutes les URLs ont échoué.")
+    return None
 
 
 def afficher_pcaet_territoire(pcaet_df: pd.DataFrame, territoire_label: str) -> None:
