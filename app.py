@@ -184,6 +184,141 @@ def preparer_regroupement_origine(data_flux, keys_mode_affichage):
         colonne_groupe = "LIBGEO"
     return data_flux, colonne_groupe
 
+# ---------------------------------------------------------
+# DONNÉES CLIMATIQUES (Canicules, projections)
+# ---------------------------------------------------------
+@st.cache_data(ttl=3600)  # Cache 1h pour la vigilance (données temps réel)
+def charger_vigilance_canicule(codes_departements):
+    """Récupère la vigilance canicule pour les départements du territoire."""
+    # Liste des codes départements du territoire
+    if type_territoire == "Commune":
+        deps = [c["codeDepartement"] for c in communes_selectionnees if "codeDepartement" in c]
+    else:
+        deps = list(set([c["codeDepartement"] for c in communes_selectionnees if "codeDepartement" in c]))
+
+    if not deps:
+        return None
+
+    # Appel API Vigilance Météo-France (format JSON)
+    url = "https://vigilance.meteofrance.com/data/NXFR/vigilance/encours/couleur/departement"
+    try:
+        resp = requests.get(url, timeout=10)
+        vigilance_data = resp.json() if resp.status_code == 200 else None
+    except:
+        vigilance_data = None
+
+    if not vigilance_data:
+        st.warning("⚠️ Impossible de récupérer les données de vigilance Météo-France.")
+        return None
+
+    # Filtre pour les départements du territoire
+    vigilance_territoire = []
+    for dep in deps:
+        dep_str = dep.zfill(3)  # Format "001" pour Ain, "075" pour Paris, etc.
+        if dep_str in vigilance_data:
+            couleur = vigilance_data[dep_str]["couleur"]
+            vigilance_territoire.append({"département": dep, "couleur": couleur})
+
+    return vigilance_territoire
+
+def charger_donnees_canicules_historiques():
+    """Charge un CSV local avec le nombre de jours de canicule par département (1991-2020).
+    Source : STATCLIM / ADEME (données moyennes sur 30 ans).
+    Format attendu : 'departement;nom;jours_canicule_1991_2020;nuits_tropicales_1991_2020'
+    """
+    try:
+        return pd.read_csv("donnees_climat/canicules_historiques_departements.csv", sep=";", dtype=str)
+    except FileNotFoundError:
+        st.warning("⚠️ Fichier 'canicules_historiques_departements.csv' manquant. Téléchargez-le depuis [STATCLIM](https://www.statistiques.developpement-durable.gouv.fr/).")
+        return None
+
+def charger_projections_canicules():
+    """Charge les projections DRIAS pour les canicules (scénarios RCP 4.5 et 8.5).
+    Format attendu : 'departement;annee;scenario;jours_canicule;nuits_tropicales'
+    """
+    try:
+        return pd.read_csv("donnees_climat/projections_canicules_drias.csv", sep=";", dtype={"annee": str})
+    except FileNotFoundError:
+        st.warning("⚠️ Fichier 'projections_canicules_drias.csv' manquant. Utilisez des données simplifiées pour la démo.")
+        # Données de démo pour éviter les erreurs
+        return pd.DataFrame({
+            "departement": ["001", "075", "069"],  # Ain, Paris, Rhône
+            "annee": ["2030", "2050", "2100"],
+            "scenario": ["RCP4.5", "RCP4.5", "RCP4.5", "RCP8.5", "RCP8.5", "RCP8.5"],
+            "jours_canicule": [10, 15, 25, 15, 25, 40],
+            "nuits_tropicales": [2, 5, 10, 5, 15, 30]
+        })
+
+def get_couleur_vigilance(couleur):
+    """Retourne l'emoji et le texte pour une couleur de vigilance."""
+    mapping = {
+        "vert": ("✅", "Aucune vigilance"),
+        "jaune": ("🟡", "Canicule possible"),
+        "orange": ("🟠", "Canicule avérée"),
+        "rouge": ("🔴", "Canicule dangereuse"),
+    }
+    return mapping.get(couleur, ("⚪", "Non renseigné"))
+# ---------------------------------------------------------
+# DOCUMENTS STRUCTURANTS (PLU, POS, PCAET)
+# ---------------------------------------------------------
+def get_documents_urbanisme(code_insee):
+    """Récupère les documents d'urbanisme (PLU, POS, etc.) pour une commune via l'API IGN."""
+    # 1. Récupérer le contour de la commune
+    resp = requests.get(
+        f"https://geo.api.gouv.fr/communes/{code_insee}",
+        params={"fields": "contour"},
+    )
+
+    if resp.status_code != 200:
+        st.error(f"❌ Impossible de récupérer le contour de la commune {code_insee}")
+        return None
+
+    data = resp.json()
+    if "contour" not in data:
+        st.error(f"❌ Contour non trouvé pour la commune {code_insee}")
+        return None
+
+    contour = data["contour"]
+
+    # 2. Interroger le Géoportail Urbanisme avec cette géométrie
+    resp_gpu = requests.get(
+        "https://apicarto.ign.fr/api/gpu/document",
+        params={"geom": str(contour).replace("'", '"')},
+    )
+
+    if resp_gpu.status_code != 200:
+        st.warning(f"⚠️ API GPU indisponible (status {resp_gpu.status_code})")
+        return None
+
+    try:
+        return resp_gpu.json()
+    except Exception as e:
+        st.warning(f"⚠️ Réponse GPU non valide: {e}")
+        return None
+@st.cache_data(ttl=86400)  # Cache 24h
+def charger_pcaet_depuis_data_gouv():
+    """Charge les données PCAET directement depuis data.gouv.fr (ADEME - mise à jour 2024)."""
+    # URL officielle du CSV PCAET (dataset: "Démarches PCAET")
+    url = "https://www.data.gouv.fr/fr/datasets/r/645a8e71-8f1d-4d39-9411-237644bf795a"
+
+    try:
+        with st.spinner("Téléchargement des données PCAET depuis l'ADEME..."):
+            # Le fichier est un CSV avec séparateur point-virgule
+            df = pd.read_csv(
+                url,
+                sep=";",
+                dtype=str,
+                encoding="utf-8",
+                on_bad_lines="warn"
+            )
+        st.success("✅ Données PCAET chargées avec succès !")
+        return df
+    except Exception as e:
+        st.error(f"❌ Erreur: {e}")
+        st.markdown("**Essayer ces liens alternatifs:**")
+        st.markdown("- [Page du dataset sur data.gouv.fr](https://www.data.gouv.fr/fr/datasets/demarches-pcaet/)")
+        st.markdown("- [Téléchargement direct CSV](https://www.data.gouv.fr/fr/datasets/r/645a8e71-8f1d-4d39-9411-237644bf795a)")
+        return None
 # =========================================================
 # SELECTION DU TERRITOIRE
 # =========================================================
@@ -443,7 +578,211 @@ else:
         f"(https://www.data.gouv.fr/datasets/flux-domicile-travail-selon-le-mode-de-transport-principal-utilise) "
         f"(INSEE / Tableau de bord des mobilités durables) — données au {date_maj}"
     )
-    
+
+# =========================================================
+# DOCUMENTS STRUCTURANTS
+# =========================================================
+st.divider()
+st.markdown(f"# 📄 Documents structurants")
+
+
+# --- PCAET ---
+st.subheader("🌍 Plans Climat-Air-Énergie Territorial (PCAET)")
+
+# Charger les données depuis data.gouv.fr
+pcaet = charger_pcaet_depuis_data_gouv()
+
+if pcaet is not None and not pcaet.empty:
+    if communes_selectionnees:
+        code_epci = communes_selectionnees[0].get("codeEpci")
+
+        if code_epci:
+            # Filtrer par SIREN de l'EPCI
+            pcaet_de_mon_epci = pcaet[pcaet["SIREN"] == code_epci]
+
+            if not pcaet_de_mon_epci.empty:
+                st.success(f"✅ PCAET trouvé pour l'EPCI {code_epci} !")
+
+                # Sélectionner les colonnes pertinentes
+                colonnes_utiles = [
+                    "Nom de la collectivité", "SIREN", "Type de PCAET",
+                    "Date d'approbation", "Date de dernière mise à jour",
+                    "Lien vers le PCAET", "Lien vers la délibération"
+                ]
+                # Garder seulement les colonnes qui existent
+                colonnes_disponibles = [col for col in colonnes_utiles if col in pcaet_de_mon_epci.columns]
+
+                st.dataframe(
+                    pcaet_de_mon_epci[colonnes_disponibles],
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+                # Lien direct
+                st.markdown(f"[🔗 Voir tous les PCAET sur data.gouv.fr](https://www.data.gouv.fr/fr/datasets/demarches-pcaet/)")
+            else:
+                st.info(f"⚠️ Aucun PCAET trouvé pour l'EPCI {code_epci} dans les données disponibles.")
+                st.markdown(f"[Vérifier sur data.gouv.fr](https://www.data.gouv.fr/fr/datasets/r/50070596-2c92-4758-a655-0f720079ac62)")
+        else:
+            st.info("Code EPCI non disponible pour ce territoire")
+    else:
+        st.info("Sélectionnez un territoire pour afficher les PCAET")
+else:
+    st.warning("⚠️ Impossible de charger les données PCAET depuis data.gouv.fr. [Vérifier la connexion](https://www.data.gouv.fr/fr/datasets/demarches-pcaet/)")
+
+# --- Documents d'urbanisme (PLU, POS, etc.) ---
+st.subheader("🏗️ Documents d'urbanisme")
+
+if communes_selectionnees:
+    code_insee = communes_selectionnees[0]["code"]
+
+    with st.spinner("Recherche des documents d'urbanisme en cours..."):
+        docs_urbanisme = get_documents_urbanisme(code_insee)
+
+    if docs_urbanisme and isinstance(docs_urbanisme, dict) and "features" in docs_urbanisme:
+        st.success(f"✅ {len(docs_urbanisme['features'])} documents trouvés !")
+
+        # Création d'un tableau lisible
+        documents = []
+        for doc in docs_urbanisme["features"]:
+            props = doc.get("properties", {})
+            documents.append({
+                "Type": props.get("typeDocument", "Non spécifié"),
+                "Nom": props.get("nom", "Non spécifié"),
+                "Date": props.get("dateApprobation", props.get("date", "Non spécifiée")),
+                "Statut": props.get("statut", "Non spécifié"),
+                "Lien": props.get("url", "#")
+            })
+
+        if documents:
+            df_docs = pd.DataFrame(documents)
+            st.dataframe(df_docs, use_container_width=True)
+    else:
+        st.info("⚠️ Aucun document trouvé via l'API. Essayez le lien direct ci-dessous.")
+        st.markdown(f"[🔍 Voir sur le Géoportail Urbanisme](https://www.geoportail-urbanisme.gouv.fr/map/#/search?codeInsee={code_insee})")
+else:
+    st.info("Sélectionnez un territoire pour afficher les documents structurants")
+
+# =========================================================
+# VULNÉRABILITÉ CLIMATIQUE
+# Données météorologiques et projections climatiques
+# =========================================================
+
+st.divider()
+st.markdown(f"# Données météorologiques et projections climatiques pour {territoire_label}")
+# =========================================================
+# CLIMAT : CANICULES ET PROJECTIONS
+# =========================================================
+st.divider()
+st.markdown(f"# 🌡️ Climat : Canicules et projections pour {territoire_label}")
+
+# --- 1. Vigilance canicule (aujourd'hui) ---
+st.subheader("🔥 Vigilance canicule **aujourd’hui**")
+if communes_selectionnees:
+    codes_departements = list(set([c["codeDepartement"] for c in communes_selectionnees if "codeDepartement" in c]))
+    vigilance = charger_vigilance_canicule(codes_departements)
+
+    if vigilance:
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            # Affichage global
+            couleurs = [v["couleur"] for v in vigilance]
+            if all(c == "vert" for c in couleurs):
+                st.success("✅ **Aucune vigilance canicule** sur le territoire.")
+            else:
+                max_couleur = max(couleurs, key=lambda x: ["vert", "jaune", "orange", "rouge"].index(x))
+                emoji, texte = get_couleur_vigilance(max_couleur)
+                st.error(f"{emoji} **{texte}** sur une partie du territoire.")
+
+        with col2:
+            st.markdown("**Détail par département :**")
+            for v in vigilance:
+                emoji, texte = get_couleur_vigilance(v["couleur"])
+                st.write(f"- **Département {v['département']}** : {emoji} {texte}")
+    else:
+        st.info("⚠️ Données de vigilance non disponibles (territoire hors métropole ?).")
+else:
+    st.info("Sélectionnez un territoire pour afficher la vigilance canicule.")
+
+# --- 2. Données historiques (1991-2020) ---
+st.divider()
+st.subheader("📊 **Données historiques (1991-2020)**")
+
+donnees_historiques = charger_donnees_canicules_historiques()
+if donnees_historiques is not None and communes_selectionnees:
+    codes_departements = list(set([c["codeDepartement"] for c in communes_selectionnees if "codeDepartement" in c]))
+    departements_territoire = [dep.zfill(3) for dep in codes_departements]
+
+    # Filtre les données pour le territoire
+    hist_territoire = donnees_historiques[donnees_historiques["departement"].isin(departements_territoire)]
+
+    if not hist_territoire.empty:
+        # Moyenne pour le territoire
+        mean_jours = hist_territoire["jours_canicule_1991_2020"].astype(float).mean()
+        mean_nuits = hist_territoire["nuits_tropicales_1991_2020"].astype(float).mean()
+
+        col1, col2 = st.columns(2)
+        col1.metric("🔥 Jours de canicule/an (moyenne 1991-2020)", f"{mean_jours:.1f}")
+        col2.metric("🌙 Nuits tropicales/an (moyenne 1991-2020)", f"{mean_nuits:.1f}")
+
+        # Comparaison avec la France (valeurs moyennes nationales)
+        st.caption("""
+        *Source : [STATCLIM / ADEME](https://www.statistiques.developpement-durable.gouv.fr/indicateurs-indices/f/2584/0/jours-vague-chaleur).
+        Moyenne nationale : ~5 jours de canicule/an (1991-2020).*""")
+    else:
+        st.warning("Aucune donnée historique disponible pour ce territoire.")
+else:
+    st.warning("Données historiques non chargées.")
+
+# --- 3. Projections futures (DRIAS) ---
+st.divider()
+st.subheader("🔮 **Projections futures (2030-2100)**")
+
+projections = charger_projections_canicules()
+if projections is not None and communes_selectionnees:
+    codes_departements = [dep.zfill(3) for dep in list(set([c["codeDepartement"] for c in communes_selectionnees if "codeDepartement" in c]))]
+    proj_territoire = projections[projections["departement"].isin(codes_departements)]
+
+    if not proj_territoire.empty:
+        # Filtre pour le territoire et regroupe par année/scenario
+        proj_territoire["annee"] = proj_territoire["annee"].astype(int)
+        proj_territoire["jours_canicule"] = proj_territoire["jours_canicule"].astype(float)
+        proj_territoire["nuits_tropicales"] = proj_territoire["nuits_tropicales"].astype(float)
+
+        # Graphique : Évolution des jours de canicule
+        fig = px.line(
+            proj_territoire,
+            x="annee",
+            y="jours_canicule",
+            color="scenario",
+            title=f"Projection du nombre de jours de canicule/an pour {territoire_label}",
+            labels={"jours_canicule": "Jours de canicule/an", "annee": "Année", "scenario": "Scénario"},
+            color_discrete_map={"RCP4.5": "orange", "RCP8.5": "red"}
+        )
+        fig.update_layout(hovermode="x unified")
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Graphique : Nuits tropicales
+        fig2 = px.bar(
+            proj_territoire,
+            x="annee",
+            y="nuits_tropicales",
+            color="scenario",
+            barmode="group",
+            title=f"Projection du nombre de nuits tropicales/an pour {territoire_label}",
+            labels={"nuits_tropicales": "Nuits tropicales/an", "annee": "Année", "scenario": "Scénario"},
+            color_discrete_map={"RCP4.5": "orange", "RCP8.5": "red"}
+        )
+        st.plotly_chart(fig2, use_container_width=True)
+
+        st.caption("""
+        *Source : [DRIAS](https://www.drias-climat.fr/) (scénarios RCP4.5 = +2°C en 2100, RCP8.5 = +4°C).
+        Une **nuit tropicale** = température nocturne ≥ 20°C.*""")
+    else:
+        st.warning("Aucune projection disponible pour ce territoire.")
+else:
+    st.warning("Projections non chargées.")
+
 # =========================================================
 # FIN DE PAGE
 # =========================================================
@@ -474,5 +813,5 @@ with col2:
 # Temps écoulé
 elapsed = time.time() - st.session_state.start_time
 st.caption(f"⏱️ Temps de chargement : {elapsed:.1f} secondes")
-st.caption("""
+st.write("""
 *Code, analyse et mise en page : Tristan Riom | Dernière mise à jour :* """ + datetime.now().strftime("%d/%m/%Y"))
