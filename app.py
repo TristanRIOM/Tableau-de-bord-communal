@@ -384,7 +384,7 @@ else:  # EPCI
             with st.spinner("Récupération des communes membres..."):
                 resp2 = requests.get(
                     f"https://geo.api.gouv.fr/epcis/{epci['code']}/communes",
-                    params={"fields": "nom,code,codeDepartement,population,centre,surface"},
+                    params={"fields": "nom,code,codeDepartement,population,centre,surface,codeEpci"},
                 )
             communes_selectionnees = resp2.json() if resp2.status_code == 200 else []
             st.caption(f"{len(communes_selectionnees)} communes membres")
@@ -536,14 +536,19 @@ else:
             & (~population_communes["code"].isin(codes_communes))
         ]["code"].tolist()
     else:
-        pop_par_epci = population_communes.groupby("codeEpci", as_index=False)["population"].sum()
-        pop_par_epci["tranche"] = pop_par_epci["population"].apply(bracket_population)
-        epci_similaires = pop_par_epci[
-            (pop_par_epci["tranche"] == tranche_cible) & (pop_par_epci["codeEpci"] != epci["code"])
-        ]["codeEpci"].tolist()
-        codes_similaires = population_communes[
-            population_communes["codeEpci"].isin(epci_similaires)
-        ]["code"].tolist()
+        # Obtenir le code EPCI du territoire sélectionné
+        current_epci_code = communes_selectionnees[0].get("codeEpci") if communes_selectionnees else None
+        if current_epci_code:
+            pop_par_epci = population_communes.groupby("codeEpci", as_index=False)["population"].sum()
+            pop_par_epci["tranche"] = pop_par_epci["population"].apply(bracket_population)
+            epci_similaires = pop_par_epci[
+                (pop_par_epci["tranche"] == tranche_cible) & (pop_par_epci["codeEpci"] != current_epci_code)
+            ]["codeEpci"].tolist()
+            codes_similaires = population_communes[
+                population_communes["codeEpci"].isin(epci_similaires)
+            ]["code"].tolist()
+        else:
+            codes_similaires = []
 
     if codes_similaires:
         rep_similaires = calculer_repartition(flux_modes, codes_similaires)
@@ -597,8 +602,12 @@ if communes_selectionnees:
         code_insee = communes_selectionnees[0]["code"]
         pcaet_v2_data = charger_pcaet_v2_par_commune(code_insee)
     else:
-        code_epci = communes_selectionnees[0]["codeEpci"]
-        pcaet_v2_data = charger_pcaet_v2_par_epci(code_epci)
+        # Pour un EPCI, utiliser le codeEpci de la première commune (toutes ont le même)
+        code_epci = communes_selectionnees[0].get("codeEpci") if communes_selectionnees else None
+        if code_epci:
+            pcaet_v2_data = charger_pcaet_v2_par_epci(code_epci)
+        else:
+            pcaet_v2_data = pd.DataFrame()
 
     afficher_pcaet_territoire(pcaet_v2_data, territoire_label)
 
