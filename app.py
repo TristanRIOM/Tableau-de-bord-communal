@@ -621,10 +621,10 @@ def afficher_pcaet_nantes(SIREN):
 
 
 SIREN = requests.get(f"https://geo.api.gouv.fr/{'communes' if type_territoire=='Commune' else 'epcis'}/{communes_selectionnees[0][type_territoire=='Commune' and 'code' or 'codeEpci']}?fields=siren").json().get("siren")
-
+print(SIREN)
 if communes_selectionnees:
     afficher_pcaet_nantes(SIREN)
-    print(SIREN)
+
 else:
     st.info("Sélectionnez un territoire pour afficher les PCAET")
 
