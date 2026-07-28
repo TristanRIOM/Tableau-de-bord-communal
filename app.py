@@ -597,26 +597,41 @@ st.markdown(f"# 📄 Documents structurants")
 # --- PCAET v2 (NOUVELLE VERSION ADEME) ---
 st.subheader("🌍 Plans Climat-Air-Énergie Territorial (PCAET) v2")
 
+def afficher_pcaet_nantes(SIREN):
+    url = "https://www.data.gouv.fr/api/1/datasets/r/beefe76c-1fa6-46c7-9a4f-466c96c5579f"
+    df = pd.read_csv(url, sep=";", encoding="utf-8-sig")
+
+    # Convertir la colonne SIREN en string pour éviter les problèmes de type
+    df["SIREN collectivites_coporteuses"] = df["SIREN collectivites_coporteuses"].astype(str)
+
+    # Filtrer UNIQUEMENT par SIREN (plus fiable)
+    pcaet_nantes = df[df["SIREN collectivites_coporteuses"] == str(SIREN)]
+
+    if len(pcaet_nantes) > 0:
+        print("✅ PCAET trouvé :\n")
+        ligne = pcaet_nantes.iloc[0]
+        for colonne in [
+            "Collectivités porteuses", "SIREN collectivites_coporteuses", "Type_demarche", "Nom",
+            "Description_rapide", "Date_creation", "Date_lancement", "Demarche_etat",
+            "Population_couverte", "Chef_de_projet", "Contact", "Elu_referent"
+        ]:
+            print(f"{colonne}: {ligne[colonne]}")
+    else:
+        print(f"❌ Aucune donnée trouvée pour le SIREN {SIREN}.")
+
+
+
 if communes_selectionnees:
     if type_territoire == "Commune":
         code_insee = communes_selectionnees[0]["code"]
-        pcaet_v2_data = charger_pcaet_v2_par_commune(code_insee)
+        # Appel avec le BON SIREN de Nantes Métropole
+        afficher_pcaet_nantes(code_insee)
     else:
         # Pour un EPCI, utiliser le codeEpci de la première commune (toutes ont le même)
         code_epci = communes_selectionnees[0].get("codeEpci") if communes_selectionnees else None
-        if code_epci:
-            pcaet_v2_data = charger_pcaet_v2_par_epci(code_epci)
-        else:
-            pcaet_v2_data = pd.DataFrame()
-
-    afficher_pcaet_territoire(pcaet_v2_data, territoire_label)
-
-    # Séparateur pour l'ancienne version
-    st.markdown("---")
-    st.markdown("#### Version précédente (PCAET v1)")
-    # ... ton code existant pour PCAET v1 ...
+        afficher_pcaet_nantes(code_insee)
 else:
-    st.info("Sélectionnez un territoire pour afficher les PCAET v2")
+    st.info("Sélectionnez un territoire pour afficher les PCAET")
 
 # --- Documents d'urbanisme (PLU, POS, etc.) ---
 st.subheader("🏗️ Documents d'urbanisme")
