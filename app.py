@@ -261,7 +261,29 @@ def get_couleur_vigilance(couleur):
 # ---------------------------------------------------------
 # DOCUMENTS STRUCTURANTS (PLU, POS, PCAET)
 # ---------------------------------------------------------
-from adev_pcaet_simple import charger_pcaet_v2_par_commune, charger_pcaet_v2_par_epci, afficher_pcaet_territoire
+def afficher_pcaet_nantes(SIREN):
+    url = "https://www.data.gouv.fr/api/1/datasets/r/beefe76c-1fa6-46c7-9a4f-466c96c5579f"
+    df = pd.read_csv(url, sep=";", encoding="utf-8-sig")
+
+    # Convertir la colonne SIREN en string puis ne garde que les 9 premier caracteres (l'ademe a rajouté des ".0" a la fin des SIREN)
+    df["SIREN collectivites_coporteuses"] = df["SIREN collectivites_coporteuses"].astype(str)
+    df["SIREN collectivites_coporteuses"] = df["SIREN collectivites_coporteuses"].str[:9]  # On ne garde que les 9 premiers caractères du SIREN (parfois il y a des espaces ou des suffixes)
+
+    # Filtrer UNIQUEMENT par SIREN (plus fiable)
+    pcaet_nantes = df[df["SIREN collectivites_coporteuses"] == str(SIREN)]
+
+    if len(pcaet_nantes) > 0:
+        st.write("✅ PCAET trouvé :\n")
+        ligne = pcaet_nantes.iloc[0]
+        for colonne in [
+            "Collectivités porteuses", "SIREN collectivites_coporteuses", "Type_demarche", "Nom",
+            "Description_rapide", "Date_creation", "Date_lancement", "Demarche_etat",
+            "Population_couverte", "Chef_de_projet", "Contact", "Elu_referent"
+        ]:
+            st.write(f"{colonne}: {ligne[colonne]}")
+    else:
+        st.write(f"❌ Aucune donnée trouvée pour le SIREN {SIREN}.")
+
 
 
 def get_documents_urbanisme(code_insee):
@@ -298,31 +320,8 @@ def get_documents_urbanisme(code_insee):
     except Exception as e:
         st.warning(f"⚠️ Réponse GPU non valide: {e}")
         return None
-@st.cache_data(ttl=86400)  # Cache 24h
-def charger_pcaet_depuis_data_gouv():
-    """Charge les données PCAET directement depuis data.gouv.fr (ADEME - mise à jour 2024)."""
-    # URL officielle du CSV PCAET (dataset: "Démarches PCAET")
-    url = "https://www.data.gouv.fr/api/1/datasets/r/ce0c5ed8-ac25-4f24-af28-ab8e92b44c09"
-    # url = "https://www.data.gouv.fr/fr/datasets/r/645a8e71-8f1d-4d39-9411-237644bf795a"
 
-    try:
-        with st.spinner("Téléchargement des données PCAET depuis l'ADEME..."):
-            # Le fichier est un CSV avec séparateur point-virgule
-            df = pd.read_csv(
-                url,
-                sep=";",
-                dtype=str,
-                encoding="utf-8",
-                on_bad_lines="warn"
-            )
-        st.success("✅ Données PCAET chargées avec succès !")
-        return df
-    except Exception as e:
-        st.error(f"❌ Erreur: {e}")
-        st.markdown("**Essayer ces liens alternatifs:**")
-        st.markdown("- [Page du dataset sur data.gouv.fr](https://www.data.gouv.fr/fr/datasets/demarches-pcaet/)")
-        st.markdown("- [Téléchargement direct CSV](https://www.data.gouv.fr/fr/datasets/r/645a8e71-8f1d-4d39-9411-237644bf795a)")
-        return None
+
 # =========================================================
 # SELECTION DU TERRITOIRE
 # =========================================================
@@ -598,30 +597,6 @@ st.markdown(f"# 📄 Documents structurants")
 
 # --- PCAET v2 (NOUVELLE VERSION ADEME) ---
 st.subheader("🌍 Plans Climat-Air-Énergie Territorial (PCAET) v2")
-
-def afficher_pcaet_nantes(SIREN):
-    url = "https://www.data.gouv.fr/api/1/datasets/r/beefe76c-1fa6-46c7-9a4f-466c96c5579f"
-    df = pd.read_csv(url, sep=";", encoding="utf-8-sig")
-
-    # Convertir la colonne SIREN en string puis ne garde que les 9 premier caracteres (l'ademe a rajouté des ".0" a la fin des SIREN)
-    df["SIREN collectivites_coporteuses"] = df["SIREN collectivites_coporteuses"].astype(str)
-    df["SIREN collectivites_coporteuses"] = df["SIREN collectivites_coporteuses"].str[:9]  # On ne garde que les 9 premiers caractères du SIREN (parfois il y a des espaces ou des suffixes)
-
-    # Filtrer UNIQUEMENT par SIREN (plus fiable)
-    pcaet_nantes = df[df["SIREN collectivites_coporteuses"] == str(SIREN)]
-
-    if len(pcaet_nantes) > 0:
-        st.write("✅ PCAET trouvé :\n")
-        ligne = pcaet_nantes.iloc[0]
-        for colonne in [
-            "Collectivités porteuses", "SIREN collectivites_coporteuses", "Type_demarche", "Nom",
-            "Description_rapide", "Date_creation", "Date_lancement", "Demarche_etat",
-            "Population_couverte", "Chef_de_projet", "Contact", "Elu_referent"
-        ]:
-            st.write(f"{colonne}: {ligne[colonne]}")
-    else:
-        st.write(f"❌ Aucune donnée trouvée pour le SIREN {SIREN}.")
-
 
 # SIREN = requests.get(f"https://geo.api.gouv.fr/{('communes' if type_territoire=='Commune' else 'epcis')}/{communes_selectionnees[0][('code' if type_territoire=='Commune' else 'codeEpci')]}").json().get("siren")
 
