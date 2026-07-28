@@ -620,7 +620,7 @@ def afficher_pcaet_nantes(SIREN):
         st.write(f"❌ Aucune donnée trouvée pour le SIREN {SIREN}.")
 
 
-SIREN = requests.get(f"https://geo.api.gouv.fr/{('communes' if type_territoire=='Commune' else 'epcis')}/{communes_selectionnees[0][('code' if type_territoire=='Commune' else 'codeEpci')]}?fields=siren").json().get("siren")
+SIREN = requests.get(f"https://geo.api.gouv.fr/{('communes' if type_territoire=='Commune' else 'epcis')}/{communes_selectionnees[0][('code' if type_territoire=='Commune' else 'codeEpci')]}").json().get("siren")
 
 st.write(f"SIREN de la collectivité séléctionnée : {SIREN}")
 afficher_pcaet_nantes(SIREN)
