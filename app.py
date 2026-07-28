@@ -608,22 +608,23 @@ def afficher_pcaet_nantes(SIREN):
     pcaet_nantes = df[df["SIREN collectivites_coporteuses"] == str(SIREN)]
 
     if len(pcaet_nantes) > 0:
-        print("✅ PCAET trouvé :\n")
+        st.write("✅ PCAET trouvé :\n")
         ligne = pcaet_nantes.iloc[0]
         for colonne in [
             "Collectivités porteuses", "SIREN collectivites_coporteuses", "Type_demarche", "Nom",
             "Description_rapide", "Date_creation", "Date_lancement", "Demarche_etat",
             "Population_couverte", "Chef_de_projet", "Contact", "Elu_referent"
         ]:
-            print(f"{colonne}: {ligne[colonne]}")
+            st.write(f"{colonne}: {ligne[colonne]}")
     else:
-        print(f"❌ Aucune donnée trouvée pour le SIREN {SIREN}.")
+        st.write(f"❌ Aucune donnée trouvée pour le SIREN {SIREN}.")
 
 
 SIREN = requests.get(f"https://geo.api.gouv.fr/{'communes' if type_territoire=='Commune' else 'epcis'}/{communes_selectionnees[0][type_territoire=='Commune' and 'code' or 'codeEpci']}?fields=siren").json().get("siren")
-print(f"SIREN de la collectivité séléctionnée : {SIREN}")
+st.write ("test")
+st.write(f"SIREN de la collectivité séléctionnée : {SIREN}")
 if communes_selectionnees:
-    afficher_pcaet_nantes(SIREN)
+    st.afficher_pcaet_nantes(SIREN)
 
 else:
     st.info("Sélectionnez un territoire pour afficher les PCAET")
