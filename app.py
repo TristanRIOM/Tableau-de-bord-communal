@@ -261,7 +261,7 @@ def get_couleur_vigilance(couleur):
 # ---------------------------------------------------------
 # DOCUMENTS STRUCTURANTS (PLU, POS, PCAET)
 # ---------------------------------------------------------
-def afficher_pcaet_nantes(SIREN):
+def afficher_pcaet(SIREN):
     url = "https://www.data.gouv.fr/api/1/datasets/r/beefe76c-1fa6-46c7-9a4f-466c96c5579f"
     df = pd.read_csv(url, sep=";", encoding="utf-8-sig")
 
@@ -273,7 +273,7 @@ def afficher_pcaet_nantes(SIREN):
     pcaet_nantes = df[df["SIREN collectivites_coporteuses"] == str(SIREN)]
 
     if len(pcaet_nantes) > 0:
-        st.write("✅ PCAET trouvé :\n")
+        col7.write("✅ PCAET trouvé :\n")
         ligne = pcaet_nantes.iloc[0]
         pcaet_markdown = ""
         for colonne in [
@@ -284,13 +284,13 @@ def afficher_pcaet_nantes(SIREN):
             # st.write(f"{colonne}: {ligne[colonne]}")
             # st.markdown(f"- **{colonne}**: {ligne[colonne]}")
             pcaet_markdown += f"- **{colonne}** : {ligne[colonne]}\n"
-        st.markdown(pcaet_markdown)
+        col7.markdown(pcaet_markdown)
     else:
-        st.write(f"❌ Aucune donnée trouvée pour le SIREN {SIREN}.")
+        col7.write(f"❌ Aucune donnée trouvée pour le SIREN {SIREN}.")
 
 
 
-def get_documents_urbanisme(code_insee):
+def get_documents_urbanisme(SIREN):
     """Récupère les documents d'urbanisme (PLU, POS, etc.) pour une commune via l'API IGN."""
     # 1. Récupérer le contour de la commune
     resp = requests.get(
@@ -598,14 +598,13 @@ else:
 # =========================================================
 st.divider()
 st.markdown(f"# 📄 Documents structurants")
+col7, col8 = st.columns(2)
 
 # --- PCAET v2 (NOUVELLE VERSION ADEME) ---
-st.subheader("🌍 Plans Climat-Air-Énergie Territorial (PCAET) v2")
+col7.subheader("🌍 Plans Climat-Air-Énergie Territorial (PCAET)")
 
-# SIREN = requests.get(f"https://geo.api.gouv.fr/{('communes' if type_territoire=='Commune' else 'epcis')}/{communes_selectionnees[0][('code' if type_territoire=='Commune' else 'codeEpci')]}").json().get("siren")
-
-st.write(f"SIREN de la collectivité séléctionnée : {SIREN}")
-afficher_pcaet_nantes(SIREN)
+# col7.write(f"SIREN de la collectivité séléctionnée : {SIREN}")
+afficher_pcaet(SIREN)
 
 # --- Documents d'urbanisme (PLU, POS, etc.) ---
 st.subheader("🏗️ Documents d'urbanisme")
