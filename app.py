@@ -275,6 +275,7 @@ def afficher_pcaet_nantes(SIREN):
     if len(pcaet_nantes) > 0:
         st.write("✅ PCAET trouvé :\n")
         ligne = pcaet_nantes.iloc[0]
+        pcaet_markdown = ""
         for colonne in [
             "Collectivités porteuses", "SIREN collectivites_coporteuses", "Type_demarche", "Nom",
             "Description_rapide", "Date_creation", "Date_lancement", "Demarche_etat",
