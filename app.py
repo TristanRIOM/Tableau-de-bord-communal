@@ -284,7 +284,7 @@ def afficher_pcaet_nantes(SIREN):
             # st.write(f"{colonne}: {ligne[colonne]}")
             # st.markdown(f"- **{colonne}**: {ligne[colonne]}")
             pcaet_markdown += f"- **{colonne}** : {ligne[colonne]}\n"
-            st.markdown(pcaet_markdown)
+        st.markdown(pcaet_markdown)
     else:
         st.write(f"❌ Aucune donnée trouvée pour le SIREN {SIREN}.")
 
