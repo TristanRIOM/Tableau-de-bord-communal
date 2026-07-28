@@ -344,7 +344,7 @@ if type_territoire == "Commune":
                 "https://geo.api.gouv.fr/communes",
                 params={
                     "nom": nom_recherche,
-                    "fields": "nom,code,codeDepartement,codeRegion,population,centre,surface,codeEpci",
+                    "fields": "nom,code,codeDepartement,codeRegion,population,centre,surface,codeEpci,siren",
                     "limit": 5,
                 },
             )
@@ -370,7 +370,7 @@ else:  # EPCI
         with st.spinner("Recherche en cours..."):
             resp = requests.get(
                 "https://geo.api.gouv.fr/epcis",
-                params={"nom": nom_epci, "fields": "nom,code,population", "boost": "population"},
+                params={"nom": nom_epci, "fields": "nom,code,population,siren", "boost": "population"},
             )
         epcis = resp.json() if resp.status_code == 200 else []
 
