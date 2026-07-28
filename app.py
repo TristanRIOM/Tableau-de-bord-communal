@@ -370,7 +370,7 @@ else:  # EPCI
         with st.spinner("Recherche en cours..."):
             resp = requests.get(
                 "https://geo.api.gouv.fr/epcis",
-                params={"nom": nom_epci, "fields": "nom,code,population,siren", "boost": "population"},
+                params={"nom": nom_epci, "fields": "nom,code,population,code", "boost": "population"},
             )
         epcis = resp.json() if resp.status_code == 200 else []
 
@@ -381,7 +381,7 @@ else:  # EPCI
             choix = st.selectbox("Sélectionnez l'EPCI exact", noms_affiches)
             epci = epcis[noms_affiches.index(choix)]
             territoire_label = epci["nom"]
-            SIREN = epci["siren"]
+            SIREN = epci["code"]
 
             with st.spinner("Récupération des communes membres..."):
                 resp2 = requests.get(
