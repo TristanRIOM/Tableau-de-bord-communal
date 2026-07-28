@@ -603,8 +603,8 @@ def afficher_pcaet_nantes(SIREN):
     url = "https://www.data.gouv.fr/api/1/datasets/r/beefe76c-1fa6-46c7-9a4f-466c96c5579f"
     df = pd.read_csv(url, sep=";", encoding="utf-8-sig")
 
-    # Convertir la colonne SIREN en string pour éviter les problèmes de type
-    # df["SIREN collectivites_coporteuses"] = df["SIREN collectivites_coporteuses"].astype(str)
+    # Convertir la colonne SIREN en string puis ne garde que les 9 premier caracteres (l'ademe a rajouté des ".0" a la fin des SIREN)
+    df["SIREN collectivites_coporteuses"] = df["SIREN collectivites_coporteuses"].astype(str)
     df["SIREN collectivites_coporteuses"] = df["SIREN collectivites_coporteuses"].str[:9]  # On ne garde que les 9 premiers caractères du SIREN (parfois il y a des espaces ou des suffixes)
 
     # Filtrer UNIQUEMENT par SIREN (plus fiable)
