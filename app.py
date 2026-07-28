@@ -280,7 +280,8 @@ def afficher_pcaet_nantes(SIREN):
             "Description_rapide", "Date_creation", "Date_lancement", "Demarche_etat",
             "Population_couverte", "Chef_de_projet", "Contact", "Elu_referent"
         ]:
-            st.write(f"{colonne}: {ligne[colonne]}")
+            # st.write(f"{colonne}: {ligne[colonne]}")
+            st.markdown(f"- **{colonne}**: {ligne[colonne]}")
     else:
         st.write(f"❌ Aucune donnée trouvée pour le SIREN {SIREN}.")
 
