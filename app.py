@@ -620,16 +620,10 @@ def afficher_pcaet_nantes(SIREN):
         print(f"❌ Aucune donnée trouvée pour le SIREN {SIREN}.")
 
 
+SIREN = requests.get(f"https://geo.api.gouv.fr/{'communes' if type_territoire=='Commune' else 'epcis'}/{communes_selectionnees[0][type_territoire=='Commune' and 'code' or 'codeEpci']}?fields=siren").json().get("siren")
 
 if communes_selectionnees:
-    if type_territoire == "Commune":
-        code_insee = communes_selectionnees[0]["code"]
-        # Appel avec le BON SIREN de Nantes Métropole
-        afficher_pcaet_nantes(code_insee)
-    else:
-        # Pour un EPCI, utiliser le codeEpci de la première commune (toutes ont le même)
-        code_epci = communes_selectionnees[0].get("codeEpci") if communes_selectionnees else None
-        afficher_pcaet_nantes(code_insee)
+    afficher_pcaet_nantes(SIREN)
 else:
     st.info("Sélectionnez un territoire pour afficher les PCAET")
 
