@@ -358,6 +358,7 @@ if type_territoire == "Commune":
             commune = resultats[noms_affiches.index(choix)]
             communes_selectionnees = [commune]
             territoire_label = commune["nom"]
+            SIREN = commune["siren"]
 
 else:  # EPCI
     nom_epci = st.text_input(
@@ -380,6 +381,7 @@ else:  # EPCI
             choix = st.selectbox("Sélectionnez l'EPCI exact", noms_affiches)
             epci = epcis[noms_affiches.index(choix)]
             territoire_label = epci["nom"]
+            SIREN = epci["siren"]
 
             with st.spinner("Récupération des communes membres..."):
                 resp2 = requests.get(
@@ -620,7 +622,7 @@ def afficher_pcaet_nantes(SIREN):
         st.write(f"❌ Aucune donnée trouvée pour le SIREN {SIREN}.")
 
 
-SIREN = requests.get(f"https://geo.api.gouv.fr/{('communes' if type_territoire=='Commune' else 'epcis')}/{communes_selectionnees[0][('code' if type_territoire=='Commune' else 'codeEpci')]}").json().get("siren")
+# SIREN = requests.get(f"https://geo.api.gouv.fr/{('communes' if type_territoire=='Commune' else 'epcis')}/{communes_selectionnees[0][('code' if type_territoire=='Commune' else 'codeEpci')]}").json().get("siren")
 
 st.write(f"SIREN de la collectivité séléctionnée : {SIREN}")
 afficher_pcaet_nantes(SIREN)
