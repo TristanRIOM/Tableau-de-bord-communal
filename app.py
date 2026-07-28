@@ -341,7 +341,7 @@ if type_territoire == "Commune":
     if nom_recherche:
         with st.spinner("Recherche en cours..."):
             resp = requests.get(
-                "https://geo.api.gouv.fr/communes",
+                "https://geo.api.gouv.fr/communes", # Pour info, structure de la donnée : "nom":"L'Abergement-Clémenciat", "code":"01001", "codeDepartement":"01", "siren":"210100012", "codeEpci":"200069193", "codeRegion":"84", "codesPostaux": ["01400"],"population":860
                 params={
                     "nom": nom_recherche,
                     "fields": "nom,code,codeDepartement,codeRegion,population,centre,surface,codeEpci,siren",
@@ -369,7 +369,7 @@ else:  # EPCI
     if nom_epci:
         with st.spinner("Recherche en cours..."):
             resp = requests.get(
-                "https://geo.api.gouv.fr/epcis",
+                "https://geo.api.gouv.fr/epcis", # Pour info, structure de la donnée :  "nom":"CC Faucigny - Glières", "code":"200000172", "codesDepartements":["74"], "codesRegions":["84"],"population":28363
                 params={"nom": nom_epci, "fields": "nom,code,population,code", "boost": "population"},
             )
         epcis = resp.json() if resp.status_code == 200 else []
@@ -604,7 +604,8 @@ def afficher_pcaet_nantes(SIREN):
     df = pd.read_csv(url, sep=";", encoding="utf-8-sig")
 
     # Convertir la colonne SIREN en string pour éviter les problèmes de type
-    df["SIREN collectivites_coporteuses"] = df["SIREN collectivites_coporteuses"].astype(str)
+    # df["SIREN collectivites_coporteuses"] = df["SIREN collectivites_coporteuses"].astype(str)
+    df["SIREN collectivites_coporteuses"] = df["SIREN collectivites_coporteuses"].str[:9]  # On ne garde que les 9 premiers caractères du SIREN (parfois il y a des espaces ou des suffixes)
 
     # Filtrer UNIQUEMENT par SIREN (plus fiable)
     pcaet_nantes = df[df["SIREN collectivites_coporteuses"] == str(SIREN)]
