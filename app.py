@@ -290,7 +290,7 @@ def afficher_pcaet(SIREN):
 
 
 
-def get_documents_urbanisme(SIREN):
+def get_documents_urbanisme(code_insee):
     """Récupère les documents d'urbanisme (PLU, POS, etc.) pour une commune via l'API IGN."""
     # 1. Récupérer le contour de la commune
     resp = requests.get(
@@ -347,7 +347,7 @@ if type_territoire == "Commune":
                 "https://geo.api.gouv.fr/communes", # Pour info, structure de la donnée : "nom":"L'Abergement-Clémenciat", "code":"01001", "codeDepartement":"01", "siren":"210100012", "codeEpci":"200069193", "codeRegion":"84", "codesPostaux": ["01400"],"population":860
                 params={
                     "nom": nom_recherche,
-                    "fields": "nom,code,codeDepartement,codeRegion,population,centre,surface,codeEpci,siren",
+                    "fields": "nom,code,codeDepartement,codeRegion,population,centre,surface,codeEpci,siren,code",
                     "limit": 5,
                 },
             )
@@ -362,6 +362,7 @@ if type_territoire == "Commune":
             communes_selectionnees = [commune]
             territoire_label = commune["nom"]
             SIREN = commune["siren"]
+            code_insee = commune["code"]
 
 else:  # EPCI
     nom_epci = st.text_input(
@@ -607,10 +608,10 @@ col7.subheader("🌍 Plans Climat-Air-Énergie Territorial (PCAET)")
 afficher_pcaet(SIREN)
 
 # --- Documents d'urbanisme (PLU, POS, etc.) ---
-st.subheader("🏗️ Documents d'urbanisme")
+col8.subheader("🏗️ Documents d'urbanisme")
 
 if communes_selectionnees:
-    code_insee = communes_selectionnees[0]["code"]
+    # code_insee = communes_selectionnees[0]["code"]
 
     with st.spinner("Recherche des documents d'urbanisme en cours..."):
         docs_urbanisme = get_documents_urbanisme(code_insee)
