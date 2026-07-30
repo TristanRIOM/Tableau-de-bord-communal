@@ -8,8 +8,8 @@ import plotly.express as px  # pour le graphique en barres avec étiquettes de p
 
 # Initialisation du temps de départ
 st.session_state.start_time = time.time()
-st.set_page_config(page_title="Tableau de bord - Transition écologique", page_icon="🌱", layout="wide") # configure l'onglet du navigateur et l'affichage large
-st.title("🌱 Tableau de bord - Transition écologique")  # affiche le titre principal de la page
+st.set_page_config(page_title="Tableau de bord communal", page_icon="🌱", layout="wide") # configure l'onglet du navigateur et l'affichage large
+st.title("🌱 Tableau de bord Communal - Transition écologique")  # affiche le titre principal de la page
 
 # =========================================================
 # FONCTIONS
@@ -268,63 +268,27 @@ def afficher_pcaet(SIREN):
     # Convertir la colonne SIREN en string puis ne garde que les 9 premier caracteres (l'ademe a rajouté des ".0" a la fin des SIREN)
     df["SIREN collectivites_coporteuses"] = df["SIREN collectivites_coporteuses"].astype(str)
     df["SIREN collectivites_coporteuses"] = df["SIREN collectivites_coporteuses"].str[:9]  # On ne garde que les 9 premiers caractères du SIREN (parfois il y a des espaces ou des suffixes)
-
+    pcaet_markdown = "" # reset des données
     # Filtrer UNIQUEMENT par SIREN (plus fiable)
-    pcaet_nantes = df[df["SIREN collectivites_coporteuses"] == str(SIREN)]
+    pcaet = df[df["SIREN collectivites_coporteuses"] == str(SIREN)]
 
-    if len(pcaet_nantes) > 0:
-        col7.write("✅ PCAET trouvé :\n")
-        ligne = pcaet_nantes.iloc[0]
-        pcaet_markdown = ""
+    if len(pcaet)> 0:
+        pcaet_markdown = "✅ PCAET trouvé pour la commune :\n"
+    else:
+        pcaet = df[df["SIREN collectivites_coporteuses"] == str(SIREN_EPCI_Commune_selectionnee)]
+        if len(pcaet)> 0:
+            pcaet_markdown = "✅ PCAET trouvé pour la communauté de communes :\n"
+    if len(pcaet) > 0:
+        ligne = pcaet.iloc[0]
         for colonne in [
             "Collectivités porteuses", "SIREN collectivites_coporteuses", "Type_demarche", "Nom",
             "Description_rapide", "Date_creation", "Date_lancement", "Demarche_etat",
             "Population_couverte", "Chef_de_projet", "Contact", "Elu_referent"
         ]:
-            # st.write(f"{colonne}: {ligne[colonne]}")
-            # st.markdown(f"- **{colonne}**: {ligne[colonne]}")
             pcaet_markdown += f"- **{colonne}** : {ligne[colonne]}\n"
-        col7.markdown(pcaet_markdown)
     else:
-        col7.write(f"❌ Aucune donnée trouvée pour le SIREN {SIREN}.")
-
-
-
-def get_documents_urbanisme(code_insee):
-    """Récupère les documents d'urbanisme (PLU, POS, etc.) pour une commune via l'API IGN."""
-    # 1. Récupérer le contour de la commune
-    resp = requests.get(
-        f"https://geo.api.gouv.fr/communes/{code_insee}",
-        params={"fields": "contour"},
-    )
-
-    if resp.status_code != 200:
-        st.error(f"❌ Impossible de récupérer le contour de la commune {code_insee}")
-        return None
-
-    data = resp.json()
-    if "contour" not in data:
-        st.error(f"❌ Contour non trouvé pour la commune {code_insee}")
-        return None
-
-    contour = data["contour"]
-
-    # 2. Interroger le Géoportail Urbanisme avec cette géométrie
-    resp_gpu = requests.get(
-        "https://apicarto.ign.fr/api/gpu/document",
-        params={"geom": str(contour).replace("'", '"')},
-    )
-
-    if resp_gpu.status_code != 200:
-        st.warning(f"⚠️ API GPU indisponible (status {resp_gpu.status_code})")
-        return None
-
-    try:
-        return resp_gpu.json()
-    except Exception as e:
-        st.warning(f"⚠️ Réponse GPU non valide: {e}")
-        return None
-
+        pcaet_markdown = "❌ Aucune donnée trouvée, ni pour la commune (SIREN : {SIREN}) ni pour la communauté de communes (SIREN : {SIREN_EPCI_Commune_selectionnee})."
+    return pcaet_markdown
 
 # =========================================================
 # SELECTION DU TERRITOIRE
@@ -363,6 +327,7 @@ if type_territoire == "Commune":
             territoire_label = commune["nom"]
             SIREN = commune["siren"]
             code_insee = commune["code"]
+            SIREN_EPCI_Commune_selectionnee = commune["codeEpci"]  # SIREN de l'EPCI de la commune sélectionnée
 
 else:  # EPCI
     nom_epci = st.text_input(
@@ -600,45 +565,9 @@ else:
 st.divider()
 st.markdown(f"# 📄 Documents structurants")
 col7, col8 = st.columns(2)
-
-# --- PCAET v2 (NOUVELLE VERSION ADEME) ---
 col7.subheader("🌍 Plans Climat-Air-Énergie Territorial (PCAET)")
+col7.markdown(afficher_pcaet(SIREN))
 
-# col7.write(f"SIREN de la collectivité séléctionnée : {SIREN}")
-afficher_pcaet(SIREN)
-
-# --- Documents d'urbanisme (PLU, POS, etc.) ---
-col8.subheader("🏗️ Documents d'urbanisme")
-
-if communes_selectionnees:
-    # code_insee = communes_selectionnees[0]["code"]
-
-    with st.spinner("Recherche des documents d'urbanisme en cours..."):
-        docs_urbanisme = get_documents_urbanisme(code_insee)
-
-    if docs_urbanisme and isinstance(docs_urbanisme, dict) and "features" in docs_urbanisme:
-        st.success(f"✅ {len(docs_urbanisme['features'])} documents trouvés !")
-
-        # Création d'un tableau lisible
-        documents = []
-        for doc in docs_urbanisme["features"]:
-            props = doc.get("properties", {})
-            documents.append({
-                "Type": props.get("typeDocument", "Non spécifié"),
-                "Nom": props.get("nom", "Non spécifié"),
-                "Date": props.get("dateApprobation", props.get("date", "Non spécifiée")),
-                "Statut": props.get("statut", "Non spécifié"),
-                "Lien": props.get("url", "#")
-            })
-
-        if documents:
-            df_docs = pd.DataFrame(documents)
-            st.dataframe(df_docs, use_container_width=True)
-    else:
-        st.info("⚠️ Aucun document trouvé via l'API. Essayez le lien direct ci-dessous.")
-        st.markdown(f"[🔍 Voir sur le Géoportail Urbanisme](https://www.geoportail-urbanisme.gouv.fr/map/#/search?codeInsee={code_insee})")
-else:
-    st.info("Sélectionnez un territoire pour afficher les documents structurants")
 
 # =========================================================
 # VULNÉRABILITÉ CLIMATIQUE
@@ -652,34 +581,6 @@ st.markdown(f"# Données météorologiques et projections climatiques pour {terr
 # =========================================================
 st.divider()
 st.markdown(f"# 🌡️ Climat : Canicules et projections pour {territoire_label}")
-
-# --- 1. Vigilance canicule (aujourd'hui) ---
-st.subheader("🔥 Vigilance canicule **aujourd’hui**")
-if communes_selectionnees:
-    codes_departements = list(set([c["codeDepartement"] for c in communes_selectionnees if "codeDepartement" in c]))
-    vigilance = charger_vigilance_canicule(codes_departements)
-
-    if vigilance:
-        col1, col2 = st.columns([1, 3])
-        with col1:
-            # Affichage global
-            couleurs = [v["couleur"] for v in vigilance]
-            if all(c == "vert" for c in couleurs):
-                st.success("✅ **Aucune vigilance canicule** sur le territoire.")
-            else:
-                max_couleur = max(couleurs, key=lambda x: ["vert", "jaune", "orange", "rouge"].index(x))
-                emoji, texte = get_couleur_vigilance(max_couleur)
-                st.error(f"{emoji} **{texte}** sur une partie du territoire.")
-
-        with col2:
-            st.markdown("**Détail par département :**")
-            for v in vigilance:
-                emoji, texte = get_couleur_vigilance(v["couleur"])
-                st.write(f"- **Département {v['département']}** : {emoji} {texte}")
-    else:
-        st.info("⚠️ Données de vigilance non disponibles (territoire hors métropole ?).")
-else:
-    st.info("Sélectionnez un territoire pour afficher la vigilance canicule.")
 
 # --- 2. Données historiques (1991-2020) ---
 st.divider()
